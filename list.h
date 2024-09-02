@@ -24,7 +24,7 @@
 #define IMPL_LIST_OF(_LIST_TYPE)                                                       \
     void _LIST_TYPE##_list_init(_LIST_TYPE##_LIST_PTR l)                               \
     {                                                                                  \
-        l->data = malloc(sizeof(VOIDPTR));                                             \
+        l->data = malloc(sizeof(_LIST_TYPE));                                             \
         l->cap = 1;                                                                    \
         l->len = 0;                                                                    \
     }                                                                                  \
