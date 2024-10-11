@@ -6,11 +6,11 @@
 
 typedef void *VOIDPTR;
 
-typedef struct LIST
+typedef struct ARRAY_LIST
 {
     size_t cap, len;
     VOIDPTR *data;
-} LIST, *ARRLIST_PTR;
+} ARRAY_LIST, *ARRLIST_PTR;
 
 void alist_init(ARRLIST_PTR l);
 void alist_deinit(ARRLIST_PTR l);

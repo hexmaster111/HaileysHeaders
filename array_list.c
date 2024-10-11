@@ -26,7 +26,7 @@ void alist_free(ARRLIST_PTR l)
 }
 ARRLIST_PTR alist_new()
 {
-    ARRLIST_PTR list = malloc(sizeof(LIST));
+    ARRLIST_PTR list = malloc(sizeof(ARRAY_LIST));
     list->data = malloc(sizeof(VOIDPTR));
     list->cap = 1;
     list->len = 0;
