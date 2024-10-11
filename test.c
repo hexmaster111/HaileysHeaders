@@ -1,12 +1,59 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <assert.h>
-
+#include "array_list.h"
 #include "linked_list.h"
 
-// rm test; clear; cc llist.c llist_test.c -otest; ./test
-// rm test; clear; cc llist.c llist_test.c -otest;valgrind --leak-check=full ./test
+// clear; rm test; cc array_list.c linked_list.c test.c -otest; valgrind ./test
 
+void arrlist_unit_test()
+{
+    ARRLIST_PTR l = alist_new();
+
+    alist_append(l, (void *)1);
+    alist_append(l, (void *)2);
+    alist_append(l, (void *)3);
+    alist_append(l, (void *)4);
+    alist_append(l, (void *)5);
+
+    assert(l->len == 5);
+
+    assert(l->data[0] == (void *)1);
+    assert(l->data[1] == (void *)2);
+    assert(l->data[2] == (void *)3);
+    assert(l->data[3] == (void *)4);
+    assert(l->data[4] == (void *)5);
+
+    assert(alist_at(l, 0) == (void *)1);
+    assert(alist_at(l, 1) == (void *)2);
+    assert(alist_at(l, 2) == (void *)3);
+    assert(alist_at(l, 3) == (void *)4);
+    assert(alist_at(l, 4) == (void *)5);
+
+    assert(alist_remove(l, 2) == (void *)3);
+    assert(l->data[4] == NULL);
+
+    assert(l->len == 4);
+
+    assert(l->data[0] == (void *)1);
+    assert(l->data[1] == (void *)2);
+    assert(l->data[2] == (void *)4);
+    assert(l->data[3] == (void *)5);
+
+    alist_insert(l, 1, (void *)9);
+
+    assert(l->len == 5);
+
+    assert(l->data[0] == (void *)1);
+    assert(l->data[1] == (void *)9);
+    assert(l->data[2] == (void *)2);
+    assert(l->data[3] == (void *)4);
+    assert(l->data[4] == (void *)5);
+
+    alist_free(l);
+    printf("array_list tests passed\n");
+}
+
+// =========== LINKED LIST TESTS ================= //
 void *itterated_values[4] = {0};
 int ip = 0;
 
@@ -137,8 +184,7 @@ void llist_basic_intigration_test_sorting()
 
 int main()
 {
+    arrlist_unit_test();
     llist_basic_intigration_test();
     llist_basic_intigration_test_sorting();
-
-    return 0;
 }
