@@ -5,9 +5,8 @@
 #include <assert.h>
 #define HH_GENERIC_LIST
 #include "array_list.h"
+#include "array_list.c"
 #include "json.h"
-
-
 
 #include <execinfo.h>
 #include <stdio.h>
@@ -121,20 +120,17 @@ typedef struct JOBJ_FIELD
     JOBJ_FIELD_VALUE value;
 } JOBJ_FIELD, *JOBJ_FIELD_PTR;
 
-LIST_OF(JOBJ_FIELD)
-IMPL_LIST_OF(JOBJ_FIELD)
-
-LIST_OF(JOBJ_FIELD_VALUE)
-IMPL_LIST_OF(JOBJ_FIELD_VALUE)
 
 typedef struct JARR
 {
-    JOBJ_FIELD_VALUE_LIST values;
+    //list of JOBJ_FIELD_VALUE_PTRs
+    ARRAY_LIST values;
 } JARR, *JARRPTR;
 
 typedef struct JOBJ
 {
-    JOBJ_FIELD_LIST fields;
+    //list of JOBJ_FIELD_PTR
+    ARRAY_LIST fields;
 } JOBJ, *JOBJPTR;
 
 void error_report(const char *ch)
@@ -143,9 +139,47 @@ void error_report(const char *ch)
 
     exit(1);
 }
+void _js_read_number(const char *in, double *out, int *out_chars_consumed)
+{
+    char buff[24]={0};
 
+    int buffidx=0, inidx=0,c, single_dec=0;
 
+    while(1){
+        c=in[inidx];
+        inidx++;
+        if(isspace(c)) break;
+        if(c == ',') break;
+        if(isdigit(c) || c == '.'){
+            if(c=='.'){
+                if(single_dec==1) error_report("INVALID NUMBER, Extra '.'");
+                single_dec = 1;
+            }
+            buff[buffidx]=(char)c;
+            buffidx++;
+        }
+    }
 
+    *out_chars_consumed=inidx-1;
+    *out = strtod(buff, NULL);
+   return;
+
+    ERROR:
+    *out_chars_consumed = -1;
+    *out = 0;
+}
+void _js_read_array(const char *in, JARR *out, int *out_chars_consumed)
+{
+    fprintf(stderr, "NOT IMPLIMENTED _js_read_array\n");
+    exit(1);
+}
+
+JOBJPTR _jj_obj(const char *in, int *used);
+
+void _js_read_object(const char *in, JOBJ *out, int *out_chars_consumed)
+{
+    out = _jj_obj(in, out_chars_consumed);
+}
 void _js_read_string(const char *in, STRING *out, int *out_chars_consumed)
 {
     int i = 0, c, excape = 0;
@@ -217,14 +251,54 @@ void _js_read_value(const char *in, JOBJ_FIELD_VALUE *out, int *out_chars_consum
             error_report("expected \" got EOF READ VALUE");
         else if (isspace(c))
             i++;
-        else if (c == '\"')
+        else if (isdigit(c)) // number value
+        {
+            i++;
+            int numChars = -1;
+            _js_read_number(in, &out->value.number, &numChars);
+            if (numChars == -1)
+                error_report("ERROR READING NUMBER VALUE");
+            i += numChars;
+            out->valueKind = 1;
+            break;
+        }
+        else if (c == '[') // array value
+        {
+            i++;
+            int numChars = -1;
+            _js_read_array(in, out->value.arr, &numChars);
+            if (numChars == -1)
+                error_report("ERROR READING array VALUE");
+            i += numChars;
+            out->valueKind = 3;
+            break;
+        }
+        else if (c == '{') // object value
+        {
+            i++;
+            int numChars = -1;
+            _js_read_object(in, out->value.obj, &numChars);
+            if (numChars == -1)
+                error_report("ERROR READING object VALUE");
+            i += numChars;
+            out->valueKind = 2;
+            break;
+        }
+        else if (c == '\"') // this is a string value
         {
             i++;
             int str_chars = -1;
             _js_read_string(in + i, &out->value.str, &str_chars);
             if (str_chars == -1)
-                error_report("ERROR READING VALUE");
+                error_report("ERROR READING STRING VALUE");
             i += str_chars;
+
+            out->valueKind = 0;
+            break;
+        }
+        else
+        {
+            error_report("expected obj, num, or array");
         }
     }
 
@@ -234,9 +308,9 @@ void _js_read_value(const char *in, JOBJ_FIELD_VALUE *out, int *out_chars_consum
 JOBJ_FIELD_PTR _jj_field(const char *str, int *charsconsumed)
 {
     JOBJ_FIELD_PTR ret = malloc(sizeof(JOBJ_FIELD));
-    memset(ret, 0,sizeof(JOBJ_FIELD));
+    memset(ret, 0, sizeof(JOBJ_FIELD));
 
-    int i = 0, c, got_field_name = 0;
+    int i = 0, c, got_field_name = 0, got_field_name_sepprator = 0;
     while (1)
     {
         c = str[i];
@@ -245,14 +319,28 @@ JOBJ_FIELD_PTR _jj_field(const char *str, int *charsconsumed)
         {
             i++;
         }
+        else if (got_field_name_sepprator && (c == ':' || isspace(c)))
+        {
+            i++;
+        }
+        else if (got_field_name_sepprator)
+        {
+            int charsUsed = -1;
+            _js_read_value(str + i, &ret->value, &charsUsed);
+            if (charsUsed == -1)
+                error_report("error reading value");
+            i += charsUsed;
+            break;
+        }
         else if (got_field_name)
         {
             if (c != ':')
                 error_report(str + i);
 
-            int charsUsed = -1;
-            _js_read_value(str + i, &ret->value, &charsUsed);
-            i += charsUsed;
+            if (got_field_name_sepprator)
+                error_report(str + i);
+
+            got_field_name_sepprator = 1;
         }
         else if (c == '"')
         {
@@ -263,30 +351,41 @@ JOBJ_FIELD_PTR _jj_field(const char *str, int *charsconsumed)
             got_field_name = 1;
         }
     }
+    *charsconsumed = i;
+    return ret;
 }
 
 void jobj_free(JOBJPTR j)
 {
 }
 
-JOBJPTR jobj_from(const char *str)
-{
+JOBJPTR _jj_obj(const char *in, int *used){
     JOBJPTR ret = malloc(sizeof(JOBJ));
-    memset(ret, 0,sizeof(JOBJ));
+    memset(ret, 0, sizeof(JOBJ));
+    alist_init(&ret->fields);
 
     int i = 0, c;
 
-    int obj_start = 0;
+    int obj_start = 0, got_field = 0;
 
     while (1)
     {
-        c = str[i];
+        c = in[i];
         if (isspace(c))
         {
             i++;
             continue;
         }
-        if (c == '{')
+        else if (c == '}')
+        {
+            break;
+        }
+        else if (c == ',' && got_field)
+        {
+            got_field = 0;
+            i++;
+        }
+        else if (c == '{')
         {
             if (obj_start)
                 goto ERROR;
@@ -300,21 +399,31 @@ JOBJPTR jobj_from(const char *str)
                 goto ERROR;
 
             int out_offset = -1;
-            JOBJ_FIELD_PTR f = _jj_field(str + i, &out_offset);
+            JOBJ_FIELD_PTR f = _jj_field(in + i, &out_offset);
             if (f == NULL)
                 goto ERROR;
 
+            alist_append(&ret->fields, f);
             i += out_offset;
+            got_field = 1;
             // TODO: check for , or } for what todo next <int parsed field = 1?>
             continue;
         }
     }
 
+    *used = i;
     return ret;
+    
 ERROR:
     fprintf(stderr, "%d, %c\n", i, c);
     jobj_free(ret);
     return NULL;
+}
+
+JOBJPTR jobj_from(const char *str)
+{
+    int discard =-1;
+    return _jj_obj(str,&discard);
 }
 
 int main()
