@@ -150,7 +150,7 @@ void _js_read_number(const char *in, double *out, int *out_chars_consumed)
         inidx++;
         if (isspace(c))
             break;
-        if (c == ',')
+        if (c == ',' || c == ']')
             break;
         if (isdigit(c) || c == '.')
         {
@@ -166,7 +166,8 @@ void _js_read_number(const char *in, double *out, int *out_chars_consumed)
     }
 
     *out_chars_consumed = inidx - 1;
-    *out = strtod(buff, NULL);
+    char *end;
+    *out = strtod(buff, &end);
     return;
 
 ERROR:
@@ -184,27 +185,40 @@ void _js_read_array(const char *in, JARR *out, int *out_chars_consumed)
     while (1)
     {
         c = in[i];
-        i++;
         if (isspace(c))
+        {
+            i++;
             continue;
+        }
 
         if (c == '[' || c == '{' || isdigit(c) || c == '"')
         {
             JOBJ_FIELD_VALUE *f = malloc(sizeof(JOBJ_FIELD_VALUE));
             int obj_size = -1;
+            if (!isdigit(c))
+                i++;
             _js_read_value(in + i, f, &obj_size);
             if (obj_size == -1)
                 error_report("Failed to read value in array");
             i += obj_size;
             alist_append(&out->values, f);
-        } 
-        else if (c == ',') continue;
+        }
+        else if (c == ',')
+        {
+            i++;
+            continue;
+        }
+        else if (c == ']')
+        {
+
+            i++; // use the ]
+            break;
+        }
         else
             error_report("Unexpected char in array");
     }
 
-    fprintf(stderr, "NOT IMPLIMENTED _js_read_array\n");
-    exit(1);
+    *out_chars_consumed = i;
 }
 
 JOBJPTR _jj_obj(const char *in, int *used);
@@ -279,16 +293,17 @@ void _js_read_value(const char *in, JOBJ_FIELD_VALUE *out, int *out_chars_consum
     while (1)
     {
         c = in[i];
-        i++;
         if (i >= len)
             error_report("expected \" got EOF READ VALUE");
         else if (isspace(c))
-            i++;
-        else if (isdigit(c)) // number value
         {
             i++;
+            continue;
+        }
+        else if (isdigit(c)) // number value
+        {
             int numChars = -1;
-            _js_read_number(in, &out->value.number, &numChars);
+            _js_read_number(in + i, &out->value.number, &numChars);
             if (numChars == -1)
                 error_report("ERROR READING NUMBER VALUE");
             i += numChars;
@@ -436,7 +451,7 @@ JOBJPTR _jj_obj(const char *in, int *used)
 
             int out_offset = -1;
             JOBJ_FIELD_PTR f = _jj_field(in + i, &out_offset);
-            printf("%s, %d\n",f->fieldName.buf, f->value.valueKind);
+            printf("%s, %d\n", f->fieldName.buf, f->value.valueKind);
             if (f == NULL)
                 goto ERROR;
 
@@ -467,10 +482,11 @@ int main()
 {
     string_test();
     const char *json = "{\n"
-                       "\"string\" : \"string value\",\n"
-                       "\"number\" : 5050.2410,\n"
-                       "\"object\" : {},\n"
                        "\"arrayOfNumbers\" : [0,1,2,3,4],\n"
+                       "\"string\" : \"string value\",\n"
+                       "\"number\" : 5050.24119,\n"
+                       "\"numbereasy?\" : 1,\n"
+                       "\"object\" : {},\n"
                        "\"arrayOfStrings\" : [\"A\",\"B\",\"C\"],\n"
                        "\"arrayOfObject\"  : [{},{},{}]\n"
                        "}\n";
