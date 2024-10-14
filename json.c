@@ -38,6 +38,19 @@ void string_test()
     assert(memcmp("CHAR: s", s.buf, strlen("CHAR: s")) == 0);
     assert(s.len == strlen("CHAR: s"));
     string_free(&s);
+
+    string_appendfmt(&s, "%c", 't');
+    string_appendfmt(&s, "%c", 'e');
+    string_appendfmt(&s, "%c", 's');
+    string_appendfmt(&s, "%c", 't');
+    string_appendfmt(&s, "%c", ' ');
+    string_appendfmt(&s, "%c", '1');
+    string_appendfmt(&s, "%c", '2');
+    string_appendfmt(&s, "%c", '3');
+
+    assert(s.len == strlen("test 123"));
+    assert(memcmp("test 123", s.buf, strlen("test 123")) == 0);
+    string_free(&s);
 }
 
 void string_append(STRINGPTR wb, const char *s, int len)
@@ -181,7 +194,8 @@ ERROR:
 }
 void _js_read_value(const char *in, JOBJ_FIELD_VALUE *out, int *out_chars_consumed);
 
-// in is "[ {}, 1, "some", [] ]"
+// in is " {}, 1, "some", [] ]" with the starting array char ripped off
+// string should NOT start with a '[' unless its an array of arrays or something
 void _js_read_array(const char *in, JARR *out, int *out_chars_consumed)
 {
 
@@ -199,9 +213,8 @@ void _js_read_array(const char *in, JARR *out, int *out_chars_consumed)
         if (c == '[' || c == '{' || isdigit(c) || c == '"')
         {
             JOBJ_FIELD_VALUE *f = malloc(sizeof(JOBJ_FIELD_VALUE));
+            memset(f, NULL, sizeof(JOBJ_FIELD_VALUE));
             int obj_size = -1;
-            if (!isdigit(c)) // consume the identifyer [, {, ", if its only a control char
-                i++;
             _js_read_value(in + i, f, &obj_size);
             if (obj_size == -1)
                 error_report("Failed to read value in array");
@@ -319,7 +332,8 @@ void _js_read_value(const char *in, JOBJ_FIELD_VALUE *out, int *out_chars_consum
         {
             int numChars = -1;
             out->value.arr = malloc(sizeof(JARR));
-            _js_read_array(in, out->value.arr, &numChars);
+            i++; // rip off the array start identfyer
+            _js_read_array(in + i, out->value.arr, &numChars);
             if (numChars == -1)
                 error_report("ERROR READING array VALUE");
             i += numChars;
@@ -558,6 +572,29 @@ void regression_test_array_of_numbers_object()
     }
 }
 
+void regression_test_array_of_strings_object()
+{
+    const char *testjson = "{\"strings!\":[\"1\",\"2\",\"3\",\"four\",\"five\",\"a long string\",]}";
+    JOBJPTR testobj = jobj_from(testjson);
+    assert(testobj != NULL);
+    assert(testobj->fields.len == 1);
+
+    JOBJ_FIELD_PTR f0 = alist_at(&testobj->fields, 0);
+
+    assert(f0->value.kind == JFK_ARR);
+    assert(memcmp("strings!", f0->fieldName.buf, strlen("strings!")) == 0 && "array field name");
+
+    assert(f0->value.value.arr->values.len == 6);
+
+    const char *expected[] = {"1", "2", "3", "four", "five", "a long string"};
+    for (size_t i = 0; i < 6; i++)
+    {
+        JOBJ_FIELD_VALUE *val = alist_at(&f0->value.value.arr->values, i);
+        assert(val->kind == JFK_STR);
+        assert(memcmp(expected[i], val->value.str.buf, strlen(expected[i])) == 0 && "string value matching expected");
+    }
+}
+
 void regression_test()
 {
     regression_test_number_object();
@@ -568,6 +605,9 @@ void regression_test()
     printf("string number object : OK\n");
     regression_test_array_of_numbers_object();
     printf("number array : OK\n");
+    regression_test_array_of_strings_object();
+    printf("string array : OK\n");
+    regression_test_mixed_object();
 
     printf("JSON REGRESSION TEST COMPLEATE\n");
 }
