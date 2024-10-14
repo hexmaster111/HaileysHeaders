@@ -502,6 +502,104 @@ JOBJPTR jobj_from(const char *str)
     int discard = -1;
     return _jj_obj(str, &discard);
 }
+// ================= jobj to string impl
+void _jobj_tostring_writefieldvalue(JOBJ_FIELD_VALUE *f, STRING *out, int indent);
+
+#define NOT_IMPLIMENTED(WHAT)                             \
+    {                                                     \
+        fprintf(stderr, "%s is not implimented\n", WHAT); \
+        abort();                                          \
+    }
+
+void _jobj_tostring_writefieldvalue_number(JOBJ_FIELD_VALUE *f, STRING *out, int indent)
+{
+    string_appendfmt(out, "%f", f->value.number);
+}
+
+void _jobj_tostring_writefieldvalue_string(JOBJ_FIELD_VALUE *f, STRING *out, int indent)
+{
+    string_appendfmt(out, "\"%s\"", f->value.str.buf);
+}
+
+void _jobj_tostring_writefieldvalue_array(JOBJ_FIELD_VALUE *f, STRING *out, int indent)
+{
+    string_append(out, "[", 1);
+    for (size_t i = 0; i < f->value.arr->values.len; i++)
+    {
+        JOBJ_FIELD_VALUE *fv = alist_at(&f->value.arr->values, i);
+        _jobj_tostring_writefieldvalue(fv, out, indent);
+
+        if (i != f->value.arr->values.len - 1)
+        {
+            string_append(out, ",", 1);
+        }
+    }
+    string_append(out, "]", 1);
+}
+
+void _jobj_tostring_writefieldvalue_object(JOBJ_FIELD_VALUE *f, STRING *out, int indent)
+{
+    _jobj_tostring(f->value.obj, out, indent + 1);
+}
+
+void _jobj_tostring_writefieldvalue(JOBJ_FIELD_VALUE *f, STRING *out, int indent)
+{
+    switch (f->kind)
+    {
+    case JFK_NUM:
+        _jobj_tostring_writefieldvalue_number(f, out, indent);
+        break;
+    case JFK_STR:
+        _jobj_tostring_writefieldvalue_string(f, out, indent);
+        break;
+    case JFK_OBJ:
+        _jobj_tostring_writefieldvalue_object(f, out, indent);
+        break;
+    case JFK_ARR:
+        _jobj_tostring_writefieldvalue_array(f, out, indent);
+        break;
+    }
+}
+
+void _jobj_tostring(JOBJPTR obj, STRING *out, int indent)
+{
+    string_append(out, "{", 1);
+
+    if (obj)
+    {
+        string_append(out, "\n", 1);
+
+        for (size_t i = 0; i < obj->fields.len; i++)
+        {
+            JOBJ_FIELD_PTR f = alist_at(&obj->fields, i);
+            assert(f != NULL);
+
+            for (size_t i = 0; i < indent; i++)
+            {
+                string_append(out, "%c", '\t');
+            }
+
+            string_appendfmt(out, "\"%s\" : ", f->fieldName);
+            _jobj_tostring_writefieldvalue(&f->value, out, indent);
+
+            if (i == obj->fields.len - 1)
+            {
+                string_append(out, "\n", 1);
+            }
+            else
+            {
+                string_append(out, ",\n", 2);
+            }
+        }
+    }
+
+    string_append(out, "}", 1);
+}
+
+void jobj_tostring(JOBJPTR obj, STRING *out)
+{
+    _jobj_tostring(obj, out, 0);
+}
 
 void regression_test_number_object()
 {
@@ -595,6 +693,69 @@ void regression_test_array_of_strings_object()
     }
 }
 
+void regression_test_mixed_object()
+{
+    const char *testjson = "{\n"
+                           "\"arrayOfStrings\" : [\"A\",\"B\",\"C\"],\n"
+                           "\"number\" : 5050.24119,\n"
+                           "\"arrayOfNumbers\" : [0,1,2,3,4],\n"
+                           "\"string\" : \"string value\",\n"
+                           "\"numbereasy?\" : 1,\n"
+                           "\"object\" : {},\n"
+                           "\"arrayOfObject\"  : [{},{},{}]\n"
+                           "}\n";
+
+    JOBJPTR testobj = jobj_from(testjson);
+    assert(testobj != NULL);
+    assert(testobj->fields.len == 7);
+
+    JOBJ_FIELD_PTR f0 = alist_at(&testobj->fields, 0);
+    JOBJ_FIELD_PTR f1 = alist_at(&testobj->fields, 1);
+    JOBJ_FIELD_PTR f2 = alist_at(&testobj->fields, 2);
+    JOBJ_FIELD_PTR f3 = alist_at(&testobj->fields, 3);
+    JOBJ_FIELD_PTR f4 = alist_at(&testobj->fields, 4);
+    JOBJ_FIELD_PTR f5 = alist_at(&testobj->fields, 5);
+    JOBJ_FIELD_PTR f6 = alist_at(&testobj->fields, 6);
+
+    assert(f0->value.kind == JFK_ARR);
+    assert(f1->value.kind == JFK_NUM);
+    assert(f2->value.kind == JFK_ARR);
+    assert(f3->value.kind == JFK_STR);
+    assert(f4->value.kind == JFK_NUM);
+    assert(f5->value.kind == JFK_OBJ);
+    assert(f6->value.kind == JFK_ARR);
+
+    assert(memcmp(f0->fieldName.buf, "arrayOfStrings", strlen("arrayOfStrings")) == 0 && "f0 name matches");
+    assert(memcmp(f1->fieldName.buf, "number", strlen("number")) == 0 && "f1 name matches");
+    assert(memcmp(f2->fieldName.buf, "arrayOfNumbers", strlen("arrayOfNumbers")) == 0 && "f2 name matches");
+    assert(memcmp(f3->fieldName.buf, "string", strlen("string")) == 0 && "f3 name matches");
+    assert(memcmp(f4->fieldName.buf, "numbereasy?", strlen("numbereasy?")) == 0 && "f4 name matches");
+    assert(memcmp(f5->fieldName.buf, "object", strlen("object")) == 0 && "f5 name matches");
+    assert(memcmp(f6->fieldName.buf, "arrayOfObject", strlen("arrayOfObject")) == 0 && "f6 name matches");
+
+    const char *expectedstr[] = {"A", "B", "C"};
+    for (size_t i = 0; i < 2; i++)
+    {
+        JOBJ_FIELD_VALUE *val = alist_at(&f0->value.value.arr->values, i);
+        assert(val->kind == JFK_STR);
+        assert(memcmp(expectedstr[i], val->value.str.buf, strlen(expectedstr[i])) == 0 && "string value matching expected");
+    }
+
+    assert(f1->value.value.number == 5050.24119 && "Number value ==");
+
+    double expectednum[] = {0, 1, 2, 3, 4};
+
+    for (size_t i = 0; i < 5; i++)
+    {
+        JOBJ_FIELD_VALUE *val = alist_at(&f2->value.value.arr->values, i);
+        assert(val->kind == JFK_NUM);
+        assert(val->value.number == expectednum[i]);
+    }
+
+    assert(memcmp(f3->value.value.str.buf, "string value", strlen("string value")) == 0);
+    assert(f4->value.value.number == 1);
+}
+
 void regression_test()
 {
     regression_test_number_object();
@@ -608,6 +769,7 @@ void regression_test()
     regression_test_array_of_strings_object();
     printf("string array : OK\n");
     regression_test_mixed_object();
+    printf("mixed object : OK\n");
 
     printf("JSON REGRESSION TEST COMPLEATE\n");
 }
@@ -616,17 +778,25 @@ int main()
 {
     string_test();
     regression_test();
+    // const char *json = "{"
+    //                    "\"topObj\":{\"numberNested\": 123.456}"
+    //                    "}";
+
     const char *json = "{\n"
-                       "\"arrayOfStrings\" : [\"A\",\"B\",\"C\"],\n"
-                       "\"number\" : 5050.24119,\n"
-                       "\"arrayOfNumbers\" : [0,1,2,3,4],\n"
                        "\"string\" : \"string value\",\n"
+                       "\"number\" : 5050.2410,\n"
                        "\"numbereasy?\" : 1,\n"
-                       "\"object\" : {},\n"
+                       "\"object\" : {\"value\":123},\n"
+                       "\"arrayOfStrings\" : [\"A\",\"B\",\"C\"],\n"
+                       "\"arrayOfNumbers\" : [0,1,2,3,4],\n"
                        "\"arrayOfObject\"  : [{},{},{}]\n"
                        "}\n";
 
     JOBJPTR s = jobj_from(json);
+
+    STRING objStr = {0};
+    jobj_tostring(s, &objStr);
+    printf("%s\n", objStr.buf);
 
     if (s == NULL)
     {
