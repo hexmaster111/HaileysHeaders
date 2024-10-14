@@ -96,6 +96,14 @@ typedef struct JARR JARR, *JARRPTR;
 JOBJPTR jobj_from(const char *str);
 void jobj_free(JOBJPTR t);
 
+typedef enum JOBJ_FIELD_KIND
+{
+    JFK_STR,
+    JFK_NUM,
+    JFK_OBJ,
+    JFK_ARR
+} JOBJ_FIELD_KIND;
+
 typedef struct JOBJ_FIELD_VALUE
 {
     union
@@ -105,13 +113,8 @@ typedef struct JOBJ_FIELD_VALUE
         JOBJPTR obj;
         JARRPTR arr;
     } value;
-    /*
-     *  0 str
-     *  1 number
-     *  2 obj
-     *  3 arr
-     */
-    int valueKind;
+
+    JOBJ_FIELD_KIND kind;
 } JOBJ_FIELD_VALUE;
 
 typedef struct JOBJ_FIELD
@@ -150,9 +153,9 @@ void _js_read_number(const char *in, double *out, int *out_chars_consumed)
         inidx++;
         if (isspace(c))
             break;
-        if (c == ',' || c == ']')
+        else if (c == ',' || c == ']')
             break;
-        if (isdigit(c) || c == '.')
+        else if (isdigit(c) || c == '.')
         {
             if (c == '.')
             {
@@ -163,6 +166,8 @@ void _js_read_number(const char *in, double *out, int *out_chars_consumed)
             buff[buffidx] = (char)c;
             buffidx++;
         }
+        else
+            break;
     }
 
     *out_chars_consumed = inidx - 1;
@@ -195,7 +200,7 @@ void _js_read_array(const char *in, JARR *out, int *out_chars_consumed)
         {
             JOBJ_FIELD_VALUE *f = malloc(sizeof(JOBJ_FIELD_VALUE));
             int obj_size = -1;
-            if (!isdigit(c))
+            if (!isdigit(c)) // consume the identifyer [, {, ", if its only a control char
                 i++;
             _js_read_value(in + i, f, &obj_size);
             if (obj_size == -1)
@@ -307,20 +312,18 @@ void _js_read_value(const char *in, JOBJ_FIELD_VALUE *out, int *out_chars_consum
             if (numChars == -1)
                 error_report("ERROR READING NUMBER VALUE");
             i += numChars;
-            out->valueKind = 1;
+            out->kind = JFK_NUM;
             break;
         }
         else if (c == '[') // array value
         {
-            i++;
             int numChars = -1;
             out->value.arr = malloc(sizeof(JARR));
-
             _js_read_array(in, out->value.arr, &numChars);
             if (numChars == -1)
                 error_report("ERROR READING array VALUE");
             i += numChars;
-            out->valueKind = 3;
+            out->kind = JFK_ARR;
             break;
         }
         else if (c == '{') // object value
@@ -331,7 +334,7 @@ void _js_read_value(const char *in, JOBJ_FIELD_VALUE *out, int *out_chars_consum
             if (numChars == -1)
                 error_report("ERROR READING object VALUE");
             i += numChars;
-            out->valueKind = 2;
+            out->kind = JFK_OBJ;
             break;
         }
         else if (c == '\"') // this is a string value
@@ -343,7 +346,7 @@ void _js_read_value(const char *in, JOBJ_FIELD_VALUE *out, int *out_chars_consum
                 error_report("ERROR READING STRING VALUE");
             i += str_chars;
 
-            out->valueKind = 0;
+            out->kind = JFK_STR;
             break;
         }
         else
@@ -451,7 +454,6 @@ JOBJPTR _jj_obj(const char *in, int *used)
 
             int out_offset = -1;
             JOBJ_FIELD_PTR f = _jj_field(in + i, &out_offset);
-            printf("%s, %d\n", f->fieldName.buf, f->value.valueKind);
             if (f == NULL)
                 goto ERROR;
 
@@ -460,6 +462,15 @@ JOBJPTR _jj_obj(const char *in, int *used)
             got_field = 1;
             // TODO: check for , or } for what todo next <int parsed field = 1?>
             continue;
+        }
+        else if (c == '\0')
+        {
+            error_report("UNEXPECTED END OF STRING");
+        }
+        else
+        {
+            // unknown char in json!
+            error_report("Unknown char in jobj!");
         }
     }
 
@@ -478,16 +489,100 @@ JOBJPTR jobj_from(const char *str)
     return _jj_obj(str, &discard);
 }
 
+void regression_test_number_object()
+{
+    const char *jobj_num = "{\"number\" : 123.456}";
+    JOBJPTR numb = jobj_from(jobj_num);
+    assert(numb != NULL);
+    assert(numb->fields.len == 1);
+    JOBJ_FIELD_PTR f = alist_at(&numb->fields, 0);
+    assert(f != NULL);
+    assert(memcmp("number", f->fieldName.buf, strlen("number")) == 0 && "Field name");
+    assert(f->value.kind == JFK_NUM);
+    assert(f->value.value.number == 123.456 && "Number parsed");
+}
+
+void regression_test_string_object()
+{
+    const char *jobj_num = "{\"string\" : \"string value!\"}";
+    JOBJPTR test = jobj_from(jobj_num);
+    assert(test != NULL);
+    assert(test->fields.len == 1);
+    JOBJ_FIELD_PTR f = alist_at(&test->fields, 0);
+    assert(f != NULL);
+    assert(memcmp("string", f->fieldName.buf, strlen("string")) == 0 && "Field name");
+    assert(f->value.kind == JFK_STR);
+    assert(memcmp("string value!", f->value.value.str.buf, strlen("string value!")) == 0 && "string value");
+}
+
+void regression_test_string_number_object()
+{
+    const char *testjson = "{\"string\":\"string val\", \"number\":123.456}";
+    JOBJPTR testobj = jobj_from(testjson);
+    assert(testobj != NULL);
+    assert(testobj->fields.len == 2);
+
+    JOBJ_FIELD_PTR f0 = alist_at(&testobj->fields, 0);
+    JOBJ_FIELD_PTR f1 = alist_at(&testobj->fields, 1);
+
+    assert(f0->value.kind == JFK_STR);
+    assert(memcmp("string", f0->fieldName.buf, strlen("string")) == 0 && "str field name");
+    assert(memcmp("string val", f0->value.value.str.buf, strlen("string val")) == 0 && "string value");
+
+    assert(f1->value.kind == JFK_NUM);
+    assert(memcmp("number", f1->fieldName.buf, strlen("number")) == 0 && "numb field name");
+    assert(f1->value.value.number == 123.456);
+}
+
+void regression_test_array_of_numbers_object()
+{
+    const char *testjson = "{\"numbers\":[10,11,12,1,2,3,4]}";
+    JOBJPTR testobj = jobj_from(testjson);
+    assert(testobj != NULL);
+    assert(testobj->fields.len == 1);
+
+    JOBJ_FIELD_PTR f0 = alist_at(&testobj->fields, 0);
+
+    assert(f0->value.kind == JFK_ARR);
+    assert(memcmp("numbers", f0->fieldName.buf, strlen("numbers")) == 0 && "array field name");
+
+    assert(f0->value.value.arr->values.len == 7);
+
+    double expected[] = {10, 11, 12, 1, 2, 3, 4};
+
+    for (size_t i = 0; i < 7; i++)
+    {
+        JOBJ_FIELD_VALUE *val = alist_at(&f0->value.value.arr->values, i);
+        assert(val->kind == JFK_NUM);
+        assert(val->value.number == expected[i]);
+    }
+}
+
+void regression_test()
+{
+    regression_test_number_object();
+    printf("number object : OK\n");
+    regression_test_string_object();
+    printf("string object : OK\n");
+    regression_test_string_number_object();
+    printf("string number object : OK\n");
+    regression_test_array_of_numbers_object();
+    printf("number array : OK\n");
+
+    printf("JSON REGRESSION TEST COMPLEATE\n");
+}
+
 int main()
 {
     string_test();
+    regression_test();
     const char *json = "{\n"
+                       "\"arrayOfStrings\" : [\"A\",\"B\",\"C\"],\n"
+                       "\"number\" : 5050.24119,\n"
                        "\"arrayOfNumbers\" : [0,1,2,3,4],\n"
                        "\"string\" : \"string value\",\n"
-                       "\"number\" : 5050.24119,\n"
                        "\"numbereasy?\" : 1,\n"
                        "\"object\" : {},\n"
-                       "\"arrayOfStrings\" : [\"A\",\"B\",\"C\"],\n"
                        "\"arrayOfObject\"  : [{},{},{}]\n"
                        "}\n";
 
