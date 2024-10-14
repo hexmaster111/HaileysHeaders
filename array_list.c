@@ -43,6 +43,10 @@ VOIDPTR alist_at(ARRLIST_PTR l, int idx)
 
 void alist_append(ARRLIST_PTR l, VOIDPTR d)
 {
+    if(l->cap == 0){
+        alist_init(l);
+    }
+
     // the len is larger then the cap, realloc and give more space
     if (l->len + 1 > l->cap)
     {
