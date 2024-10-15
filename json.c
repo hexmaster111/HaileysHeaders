@@ -340,8 +340,46 @@ JOBJ_FIELD_PTR _jj_field(const char *str, int *charsconsumed)
     return ret;
 }
 
+void jobj_free(JOBJPTR j);
+
+void _jj_free_field_value(JOBJ_FIELD_VALUE *f)
+{
+    switch (f->kind)
+    {
+    case JFK_STR:
+        string_free(&f->value.str);
+        break;
+    case JFK_NUM:
+        /* no work to free */
+        break;
+    case JFK_ARR:
+    {
+        for (size_t i = 0; i < f->value.arr->values.len; i++)
+        {
+            JOBJ_FIELD_VALUE *arrfld = alist_at(&f->value.arr->values, i);
+            _jj_free_field_value(arrfld);
+        }
+    }
+    break;
+    case JFK_OBJ:
+        jobj_free(f->value.obj);
+        break;
+    }
+}
+
+void _jj_free_field(JOBJ_FIELD_PTR f)
+{
+    string_free(&f->fieldName);
+    _jj_free_field_value(&f->value);
+}
+
 void jobj_free(JOBJPTR j)
 {
+    for (size_t i = 0; i < j->fields.len; i++)
+    {
+        JOBJ_FIELD_PTR f = alist_at(&j->fields, i);
+        _jj_free_field(f);
+    }
 }
 
 JOBJPTR _jj_obj(const char *in, int *used)
@@ -694,11 +732,10 @@ void regression_test()
 
 int main()
 {
-    string_test();
-    regression_test();
+    // string_test();
+    // regression_test();
     // const char *json = "{"
-    //                    "\"topObj\":{\"numberNested\": 123.456},"
-    //                    "\"nest0\":{\"nest1\":{\"nest2\":{\"nest3\":{\"string\":\"str\"}}}}"
+    //                    "\"topObj\":\"str\""
     //                    "}";
 
     const char *json = "{\n"
@@ -713,13 +750,15 @@ int main()
 
     JOBJPTR s = jobj_from(json);
 
-    STRING objStr = {0};
-    jobj_tostring(s, &objStr);
-    printf("%s\n", objStr.buf);
+    // STRING objStr = {0};
+    // jobj_tostring(s, &objStr);
+    // printf("%s\n", objStr.buf);
 
     if (s == NULL)
     {
         fprintf(stderr, "Error parsing object\n");
         exit(1);
     }
+    jobj_free(s);
+    s = NULL;
 }
