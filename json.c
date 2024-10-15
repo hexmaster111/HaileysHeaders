@@ -155,10 +155,6 @@ void _js_read_array(const char *in, JARR *out, int *out_chars_consumed)
 
 JOBJPTR _jj_obj(const char *in, int *used);
 
-void _js_read_object(const char *in, JOBJ *out, int *out_chars_consumed)
-{
-    out = _jj_obj(in, out_chars_consumed);
-}
 void _js_read_string(const char *in, STRING *out, int *out_chars_consumed)
 {
     int i = 0, c, excape = 0;
@@ -258,11 +254,19 @@ void _js_read_value(const char *in, JOBJ_FIELD_VALUE *out, int *out_chars_consum
         {
             i++;
             int numChars = -1;
-            _js_read_object(in, out->value.obj, &numChars);
+
+            JOBJPTR v = _jj_obj(in, &numChars);
+
+            if (v == NULL)
+                error_report(in);
+
             if (numChars == -1)
                 error_report("ERROR READING object VALUE");
+
             i += numChars;
             out->kind = JFK_OBJ;
+            out->value.obj = v;
+
             break;
         }
         else if (c == '\"') // this is a string value
@@ -474,33 +478,36 @@ void _jobj_tostring(JOBJPTR obj, STRING *out, int indent)
 {
     string_append(out, "{", 1);
 
-    if (obj)
-    {
+    if (obj->fields.len != 0)
         string_append(out, "\n", 1);
 
-        for (size_t i = 0; i < obj->fields.len; i++)
+    for (size_t i = 0; i < obj->fields.len; i++)
+    {
+        JOBJ_FIELD_PTR f = alist_at(&obj->fields, i);
+        assert(f != NULL);
+
+        for (size_t i = 0; i < indent; i++)
         {
-            JOBJ_FIELD_PTR f = alist_at(&obj->fields, i);
-            assert(f != NULL);
+            string_append(out, "\t", 1);
+        }
 
-            for (size_t i = 0; i < indent; i++)
-            {
-                string_append(out, "%c", '\t');
-            }
+        string_appendfmt(out, "\"%s\" : ", f->fieldName);
+        _jobj_tostring_writefieldvalue(&f->value, out, indent);
 
-            string_appendfmt(out, "\"%s\" : ", f->fieldName);
-            _jobj_tostring_writefieldvalue(&f->value, out, indent);
-
-            if (i == obj->fields.len - 1)
-            {
-                string_append(out, "\n", 1);
-            }
-            else
-            {
-                string_append(out, ",\n", 2);
-            }
+        if (i == obj->fields.len - 1)
+        {
+            string_append(out, "\n", 1);
+        }
+        else
+        {
+            string_append(out, ",\n", 2);
         }
     }
+    if (obj->fields.len != 0)
+        for (size_t i = 0; i < indent; i++)
+        {
+            string_append(out, "\t", 1);
+        }
 
     string_append(out, "}", 1);
 }
@@ -688,9 +695,10 @@ void regression_test()
 int main()
 {
     string_test();
-    // regression_test();
+    regression_test();
     // const char *json = "{"
-    //                    "\"topObj\":{\"numberNested\": 123.456}"
+    //                    "\"topObj\":{\"numberNested\": 123.456},"
+    //                    "\"nest0\":{\"nest1\":{\"nest2\":{\"nest3\":{\"string\":\"str\"}}}}"
     //                    "}";
 
     const char *json = "{\n"
@@ -700,7 +708,7 @@ int main()
                        "\"object\" : {\"value\":123},\n"
                        "\"arrayOfStrings\" : [\"A\",\"B\",\"C\"],\n"
                        "\"arrayOfNumbers\" : [0,1,2,3,4],\n"
-                       "\"arrayOfObject\"  : [{},{},{}]\n"
+                       "\"arrayOfObject\"  : [{\"fld\":1},{},{}]\n"
                        "}\n";
 
     JOBJPTR s = jobj_from(json);
