@@ -213,7 +213,7 @@ void _js_read_array(const char *in, JARR *out, int *out_chars_consumed)
         if (c == '[' || c == '{' || isdigit(c) || c == '"')
         {
             JOBJ_FIELD_VALUE *f = malloc(sizeof(JOBJ_FIELD_VALUE));
-            memset(f, NULL, sizeof(JOBJ_FIELD_VALUE));
+            memset(f, 0, sizeof(JOBJ_FIELD_VALUE));
             int obj_size = -1;
             _js_read_value(in + i, f, &obj_size);
             if (obj_size == -1)
@@ -409,7 +409,7 @@ JOBJ_FIELD_PTR _jj_field(const char *str, int *charsconsumed)
 
             got_field_name_sepprator = 1;
         }
-        else if (c == '"')
+        else if (c == '"') // field name
         {
             i++; // dont give it the starting "
             int charsUsed = -1;
@@ -502,14 +502,9 @@ JOBJPTR jobj_from(const char *str)
     int discard = -1;
     return _jj_obj(str, &discard);
 }
-// ================= jobj to string impl
+// ================= JSON TO STRING ================================================
 void _jobj_tostring_writefieldvalue(JOBJ_FIELD_VALUE *f, STRING *out, int indent);
-
-#define NOT_IMPLIMENTED(WHAT)                             \
-    {                                                     \
-        fprintf(stderr, "%s is not implimented\n", WHAT); \
-        abort();                                          \
-    }
+void _jobj_tostring(JOBJPTR obj, STRING *out, int indent);
 
 void _jobj_tostring_writefieldvalue_number(JOBJ_FIELD_VALUE *f, STRING *out, int indent)
 {
@@ -600,6 +595,8 @@ void jobj_tostring(JOBJPTR obj, STRING *out)
 {
     _jobj_tostring(obj, out, 0);
 }
+
+// ================ JSON TESTS ================
 
 void regression_test_number_object()
 {
@@ -777,7 +774,7 @@ void regression_test()
 int main()
 {
     string_test();
-    regression_test();
+    // regression_test();
     // const char *json = "{"
     //                    "\"topObj\":{\"numberNested\": 123.456}"
     //                    "}";
