@@ -56,4 +56,4 @@ static int vec_expand(void **buf, int *len, int *cap, int mbsz)
     if ((v)->len > 0)             \
         for ((iter) = 0; (iter) < (v)->len && ((var) = (v)->buf[(iter)], 1); ++(iter))
 
-#endif
+#endif // VEC_H
