@@ -31,6 +31,33 @@ for (int *some = calloc(1, 32); latch43 < 1; ++latch43, free(some))
 
 the local var (`latch43` in this case) is used to only run the for loop a single time
 
+Other Examples
+
+Using it with raylib
+``` c
+
+#include "using.h"
+#include <raylib.h>
+
+int main(int argc, char *argv[])
+{
+
+    using(InitWindow(800, 600, "Hello World"), CloseWindow())
+    {
+        SetTargetFPS(60);
+
+        while (!WindowShouldClose())
+        {
+            using(BeginDrawing(), EndDrawing())
+            {
+                ClearBackground(WHITE);
+                DrawFPS(10, 10);
+            }
+        }
+    }
+}
+```
+
 
 # todo: more docs on
 ## vec.h
