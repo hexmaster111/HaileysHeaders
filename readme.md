@@ -10,7 +10,7 @@ This is a header only lib that allows for automatic freeing of resources when ex
 ``` c
 #include "using.h"
 
-using(int *some = calloc(1, 32), free(some), some = NULL)
+using(int *some = calloc(1, 32), free(some))
 {
     some[0] = 1;
     printf("some %p\n", some);
@@ -22,7 +22,7 @@ The macro expands into something like
 
 ``` c
 int latch43 = 0;
-for (int *some = calloc(1, 32); latch43 < 1; ++latch43, free(some), some = ((void *)0))
+for (int *some = calloc(1, 32); latch43 < 1; ++latch43, free(some))
 {
     some[0] = 1;
     printf("some %p\n", some);
