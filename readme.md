@@ -58,6 +58,20 @@ int main(int argc, char *argv[])
 }
 ```
 
+## file_memmap.h file_memmap.c
+
+This lets the user open files using OpenFileMemMap, and then interact with the file content from GetFileContent
+
+Usage Example
+```c
+
+file_memmap m = {0};
+OpenFileMemMap(&m, "te2.c");
+puts(GetFileContent(m));
+CloseFileMemMap(&m);
+
+```
+
 
 # todo: more docs on
 ## vec.h
