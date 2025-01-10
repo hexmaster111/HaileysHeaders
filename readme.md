@@ -72,6 +72,45 @@ CloseFileMemMap(&m);
 
 ```
 
+## taskchain.h (demo in taskchaindemo.c)
+
+### HTCL (Haileys Task Chain lib)
+Inspired by c#'s Tasks
+
+#### Requirements
+C99, if you want to use the same task creation sematntics as in the TaskChain structure demo.  It would get messy if you wanted to declair all the Task Chain parts as there own seprate varables.
+
+##### Using
+
+Tasks are just methods that return a `TaskResault`
+
+```c
+TaskResualt NeverFails()
+{
+    puts(__func__);
+    return (TaskResualt){.resault = TaskResualt_Ok};
+}
+```
+
+Tasks are structured into a `struct TaskChain`
+```c
+TskChn demotask = {
+    .task = NeverFails,
+    .Okey = &(TskChn){
+        .task = FailsSometimes,
+        .Fail = TaskFailedMethod,
+        .Okey = &(TskChn){
+            .task = FailsSometimes,
+            .Fail = TaskFailedMethod}}};
+```
+
+
+A `struct TaskChain` can then be executed using the `RunChain` method
+
+```c
+RunChain(&demotask);
+```
+
 
 # todo: more docs on
 ## vec.h
