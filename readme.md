@@ -110,7 +110,27 @@ A `struct TaskChain` can then be executed using the `RunChain` method
 ```c
 RunChain(&demotask);
 ```
+## read_all_lines.c read_all_lines.h
 
+Just a helper that i find myself writing alot, reads all the file lines and splits on windows and linux line endings.
+
+```c
+int main(int argc, char *argv[])
+{
+	int linecount = 0;
+	char **lines = ReadAllLines("test.txt", &linecount);
+
+	for (int i = 0; i < linecount; i++)
+	{
+		puts(lines[i]);
+	}
+
+	FreeAllLines(lines, linecount);
+
+	lines = NULL;
+	return 0;
+}
+```
 
 # todo: more docs on
 ## vec.h
