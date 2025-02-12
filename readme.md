@@ -2,6 +2,57 @@
 
 # Haileys Headers !
 
+## json_simple.h
+
+A tiny header only lib for reading and writing json
+
+Can read FLAT JSON, a json with only one level
+Can Write any json without allocations done by the lib
+
+### Writing
+``` c
+#define JSON_IMPL
+#include "json_simple.h"
+
+// just a buffer to write into 
+char buf[1024*1024*3] = {0};
+
+JsonBuildObject_Start(buf);
+    JsonBuildObject_AddPropertyRaw(buf, "k", "1", 0);
+    JsonBuildObject_AddProperty(buf, "label", "Label", 0);
+    JsonBuildObject_AddProperty(buf, "something", "123", 0);
+    JsonBuildObject_AddPropertyRaw(buf, "obj", "{}", 0);
+    JsonBuildObject_AddPropertyRaw(buf, "arr", "[]", 1);
+JsonBuildObject_End(buf);
+
+printf("%s\n", buf);
+
+// outputs:   {"k":1,"label":"Label","something":"123","obj":{},"arr":[]}
+```
+
+### Reading
+
+Reading only supporst string properties ! A simple scanning reader
+
+``` c
+#define JSON_IMPL
+#include "json_simple.h"
+
+const char *json = "{\"k\":\"1\",\"label\":\"Label\",\"something\":\"123\"}";
+char *k = NULL;
+int k_len = 0;
+char *label = NULL;
+int label_len = 0;
+ParseJson(json, strlen(json), "k", &k, &k_len);
+ParseJson(json, strlen(json), "label", &label, &label_len);
+printf("k: %.*s, label: %.*s\n",
+       k_len, k,
+       label_len, label);
+
+```
+
+
+
 ## using.h
 
 This is a header only lib that allows for automatic freeing of resources when execution leaves the usings scope. 
@@ -134,7 +185,7 @@ int main(int argc, char *argv[])
 
 # todo: more docs on
 ## vec.h
-## json.h json.c
+## json.h json.c -- supports complex objects
 ## vt100.h vt100.c
 ## string.h string.c
 ## linked_list.h linked_list.c
