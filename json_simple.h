@@ -1,6 +1,8 @@
 #ifndef JSON_C
 #define JSON_C
 
+#include <string.h>
+
 void ParseJson(
     char *in_start,           // string to parse the json outta
     int in_len,               // total len of json message
@@ -16,6 +18,9 @@ void JsonBuildArray_AddObject(char *dst, int isLast);
 void JsonBuildObject_Start(char *dst);
 void JsonBuildObject_End(char *dst);
 void JsonBuildObject_AddPropertyRaw(char *dst, char *name, char *val, int isLast);
+
+void JsonBuildObject_StartObject(char *dst, char *name);
+void JsonBuildObject_EndObject(char *dst, int isLast);
 
 #endif // JSON_C
 
@@ -58,6 +63,23 @@ void JsonBuildObject_AddProperty(char *dst, char *name, char *val, int isLast)
     memcpy(dst + inspos, val, strlen(val));
     dst[strlen(dst)] = '"';
 
+    if (!isLast)
+        dst[strlen(dst)] = ',';
+}
+
+void JsonBuildObject_StartObject(char *dst, char *name)
+{
+    dst[strlen(dst)] = '"';
+    int inspos = strlen(dst);
+    memcpy(dst + inspos, name, strlen(name));
+    dst[strlen(dst)] = '"';
+    dst[strlen(dst)] = ':';
+    dst[strlen(dst)] = '{';
+}
+
+void JsonBuildObject_EndObject(char *dst, int isLast)
+{
+    dst[strlen(dst)] = '}';
     if (!isLast)
         dst[strlen(dst)] = ',';
 }
