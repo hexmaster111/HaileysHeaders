@@ -85,6 +85,39 @@
         return &list->items[idx];                                                 \
     }
 
+
+#ifdef BETTER_LIST_CHAR_HELPERS // string like helpers 
+typedef char Char;
+ListDef(Char);
+
+ListOfChar CharList_FromCString(char *str)
+{
+    int len = strlen(str);
+    return (ListOfChar){
+        .cap = len + 1,
+        .count = len,
+        .items = strdup(str),
+    };
+}
+
+// returns ptr to internal buffer
+const char *CString_FromCharList(ListOfChar ch)
+{
+    static ListOfChar internal_buffer = {0};
+
+    internal_buffer.count = 0;
+
+    for (size_t i = 0; i < ch.count; i++)
+    {
+        Char_ListPush(&internal_buffer, ch.items[i]);
+    }
+
+    Char_ListPush(&internal_buffer, '\0');
+    return internal_buffer.items;
+}
+
+#endif // BETTER_LIST_CHAR_HELPERS
+
 #ifdef LIST_TESTS
 ListDef(int);
 ListImpl(int);
